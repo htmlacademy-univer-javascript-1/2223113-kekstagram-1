@@ -1,10 +1,29 @@
 import { renderBigPicture } from './big-picture-render.js';
+import { getNonRepeatingRandoms } from './util.js';
 
+const RANDOM_PHOTOS_COUNT = 10;
 const template = document.querySelector('#picture')
   .content
   .querySelector('.picture');
 const thumbnailsBlock = document.querySelector('.pictures');
+const imgFilters = document.querySelector('.img-filters');
 
+const compareByComments = (photoA, photoB) => photoB.comments.length - photoA.comments.length;
+
+const filters = {
+  'filter-default': (photos) => photos,
+  'filter-random': (photos) => {
+    const result = [];
+    const numbers = (photos.length >= RANDOM_PHOTOS_COUNT)
+      ? getNonRepeatingRandoms(0, photos.length - 1, RANDOM_PHOTOS_COUNT, [])
+      : getNonRepeatingRandoms(0, photos.length - 1, photos.length, []);
+    numbers.forEach((number) => {
+      result.push(photos[number]);
+    });
+    return result;
+  },
+  'filter-discussed': (photos) => photos.sort(compareByComments)
+};
 
 const createThumbnail = (photoInfo) => {
   const picture = template.cloneNode(true);
@@ -19,17 +38,16 @@ const createThumbnail = (photoInfo) => {
 
 const thumbnailDict = new Map();
 
-const renderThumbnails = (descriptions) => {
-  const thumbnailsFragment = document.createDocumentFragment();
-  descriptions.forEach((description) => {
-    const thumbnail = createThumbnail(description);
-    thumbnailDict.set(thumbnail, description);
-    thumbnailsFragment.appendChild(thumbnail);
-  });
-  thumbnailsBlock.appendChild(thumbnailsFragment);
+const clearThumbnails = () => {
+  const thumbnails = thumbnailsBlock.querySelectorAll('.picture');
+  if (thumbnails.length !== 0) {
+    thumbnails.forEach((thumbnail) => {
+      thumbnail.remove();
+    });
+  }
 };
 
-thumbnailsBlock.addEventListener('click', (evt) => {
+const thumbnailsClickHandler = (evt) => {
   const thumbnail = evt.target.closest('a');
   if (!thumbnail) {
     return;
@@ -38,7 +56,23 @@ thumbnailsBlock.addEventListener('click', (evt) => {
     return;
   }
   renderBigPicture(thumbnailDict.get(thumbnail));
-});
+};
+
+const renderThumbnails = (descriptions) => {
+  clearThumbnails();
+  const filter = imgFilters
+    .querySelector('.img-filters__button--active')
+    .id;
+  const thumbnailsFragment = document.createDocumentFragment();
+  filters[filter](descriptions.slice())
+    .forEach((description) => {
+      const thumbnail = createThumbnail(description);
+      thumbnailDict.set(thumbnail, description);
+      thumbnailsFragment.appendChild(thumbnail);
+    });
+  thumbnailsBlock.appendChild(thumbnailsFragment);
+  thumbnailsBlock.addEventListener('click', thumbnailsClickHandler);
+};
 
 const renderLoadError = (message) => {
   const error = document.createElement('div');
@@ -47,4 +81,18 @@ const renderLoadError = (message) => {
   thumbnailsBlock.appendChild(error);
 };
 
-export {renderThumbnails, renderLoadError};
+const applyFilters = (callback) => {
+  imgFilters.classList.remove('img-filters--inactive');
+  imgFilters.addEventListener('click', (evt) => {
+    const current = imgFilters.querySelector('.img-filters__button--active');
+    const target = evt.target;
+    if (target.tagName !== 'BUTTON' || target === current) {
+      return;
+    }
+    current.classList.remove('img-filters__button--active');
+    target.classList.add('img-filters__button--active');
+    callback();
+  });
+};
+
+export {renderThumbnails, renderLoadError, applyFilters};
